@@ -34,6 +34,9 @@
             this.pictureBox3 = new System.Windows.Forms.PictureBox();
             this.pictureBox4 = new System.Windows.Forms.PictureBox();
             this.btnEdgeDetect = new System.Windows.Forms.Button();
+            this.btnSetROI = new System.Windows.Forms.Button();
+            this.btnSaveRoiOnly = new System.Windows.Forms.Button();
+            this.btnDetectChamfer = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox3)).BeginInit();
@@ -42,7 +45,7 @@
             // 
             // btnLoadImages
             // 
-            this.btnLoadImages.Location = new System.Drawing.Point(779, 12);
+            this.btnLoadImages.Location = new System.Drawing.Point(684, 41);
             this.btnLoadImages.Name = "btnLoadImages";
             this.btnLoadImages.Size = new System.Drawing.Size(131, 23);
             this.btnLoadImages.TabIndex = 0;
@@ -52,7 +55,7 @@
             // 
             // pictureBox1
             // 
-            this.pictureBox1.Location = new System.Drawing.Point(42, 44);
+            this.pictureBox1.Location = new System.Drawing.Point(350, 41);
             this.pictureBox1.Name = "pictureBox1";
             this.pictureBox1.Size = new System.Drawing.Size(300, 300);
             this.pictureBox1.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -61,7 +64,7 @@
             // 
             // pictureBox2
             // 
-            this.pictureBox2.Location = new System.Drawing.Point(433, 44);
+            this.pictureBox2.Location = new System.Drawing.Point(44, 41);
             this.pictureBox2.Name = "pictureBox2";
             this.pictureBox2.Size = new System.Drawing.Size(300, 300);
             this.pictureBox2.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -70,7 +73,7 @@
             // 
             // pictureBox3
             // 
-            this.pictureBox3.Location = new System.Drawing.Point(42, 428);
+            this.pictureBox3.Location = new System.Drawing.Point(44, 347);
             this.pictureBox3.Name = "pictureBox3";
             this.pictureBox3.Size = new System.Drawing.Size(300, 300);
             this.pictureBox3.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -79,7 +82,7 @@
             // 
             // pictureBox4
             // 
-            this.pictureBox4.Location = new System.Drawing.Point(433, 428);
+            this.pictureBox4.Location = new System.Drawing.Point(350, 347);
             this.pictureBox4.Name = "pictureBox4";
             this.pictureBox4.Size = new System.Drawing.Size(300, 300);
             this.pictureBox4.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
@@ -88,19 +91,52 @@
             // 
             // btnEdgeDetect
             // 
-            this.btnEdgeDetect.Location = new System.Drawing.Point(779, 41);
+            this.btnEdgeDetect.Location = new System.Drawing.Point(684, 70);
             this.btnEdgeDetect.Name = "btnEdgeDetect";
             this.btnEdgeDetect.Size = new System.Drawing.Size(131, 23);
             this.btnEdgeDetect.TabIndex = 5;
-            this.btnEdgeDetect.Text = "엣지 검출 실행";
+            this.btnEdgeDetect.Text = "캐니 엣지 검출";
             this.btnEdgeDetect.UseVisualStyleBackColor = true;
             this.btnEdgeDetect.Click += new System.EventHandler(this.btnEdgeDetect_Click);
+            // 
+            // btnSetROI
+            // 
+            this.btnSetROI.Location = new System.Drawing.Point(684, 99);
+            this.btnSetROI.Name = "btnSetROI";
+            this.btnSetROI.Size = new System.Drawing.Size(131, 23);
+            this.btnSetROI.TabIndex = 7;
+            this.btnSetROI.Text = "ROI 영역 지정";
+            this.btnSetROI.UseVisualStyleBackColor = true;
+            this.btnSetROI.Click += new System.EventHandler(this.btnSetROI_Click);
+            // 
+            // btnSaveRoiOnly
+            // 
+            this.btnSaveRoiOnly.Location = new System.Drawing.Point(684, 128);
+            this.btnSaveRoiOnly.Name = "btnSaveRoiOnly";
+            this.btnSaveRoiOnly.Size = new System.Drawing.Size(131, 23);
+            this.btnSaveRoiOnly.TabIndex = 8;
+            this.btnSaveRoiOnly.Text = "ROI 영역 저장";
+            this.btnSaveRoiOnly.UseVisualStyleBackColor = true;
+            this.btnSaveRoiOnly.Click += new System.EventHandler(this.btnSaveRoiOnly_Click);
+            // 
+            // btnDetectChamfer
+            // 
+            this.btnDetectChamfer.Location = new System.Drawing.Point(684, 157);
+            this.btnDetectChamfer.Name = "btnDetectChamfer";
+            this.btnDetectChamfer.Size = new System.Drawing.Size(131, 23);
+            this.btnDetectChamfer.TabIndex = 9;
+            this.btnDetectChamfer.Text = "C0.7 검출";
+            this.btnDetectChamfer.UseVisualStyleBackColor = true;
+            this.btnDetectChamfer.Click += new System.EventHandler(this.btnDetectChamfer_Click);
             // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(932, 804);
+            this.ClientSize = new System.Drawing.Size(858, 673);
+            this.Controls.Add(this.btnDetectChamfer);
+            this.Controls.Add(this.btnSaveRoiOnly);
+            this.Controls.Add(this.btnSetROI);
             this.Controls.Add(this.btnEdgeDetect);
             this.Controls.Add(this.pictureBox4);
             this.Controls.Add(this.pictureBox3);
@@ -125,6 +161,9 @@
         private System.Windows.Forms.PictureBox pictureBox3;
         private System.Windows.Forms.PictureBox pictureBox4;
         private System.Windows.Forms.Button btnEdgeDetect;
+        private System.Windows.Forms.Button btnSetROI;
+        private System.Windows.Forms.Button btnSaveRoiOnly;
+        private System.Windows.Forms.Button btnDetectChamfer;
     }
 }
 
