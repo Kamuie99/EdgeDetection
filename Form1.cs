@@ -36,7 +36,7 @@ namespace EdgeDetection
         {
             for (int i = 0; i < 4; i++)
             {
-                roiRects[i] = new Rectangle(30, 30, 100, 100); // 초기 ROI
+                roiRects[i] = new Rectangle(30, 30, 70, 70); // 초기 ROI
                 PictureBox picBox = Controls.Find($"pictureBox{i + 1}", true)[0] as PictureBox;
 
                 picBox.Paint += PictureBox_Paint;
@@ -157,43 +157,39 @@ namespace EdgeDetection
                     return;
                 }
 
-                // 1. Bitmap으로 이미지 불러오기
                 using (Bitmap bitmap = new Bitmap(imagePath))
+                using (Mat mat = BitmapToMat(bitmap))
+                using (Mat gray = new Mat())
+                using (Mat blurred = new Mat())
+                using (Mat edges = new Mat())
                 {
-                    // 2. Bitmap → Mat 변환
-                    using (Mat mat = BitmapToMat(bitmap))
-                    {
-                        // 3. 그레이스케일 변환
-                        using (Mat gray = new Mat())
-                        {
-                            Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
+                    // 1. Grayscale 변환
+                    Cv2.CvtColor(mat, gray, ColorConversionCodes.BGR2GRAY);
 
-                            // 4. 블러링으로 노이즈 제거
-                            using (Mat blurred = new Mat())
-                            {
-                                Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), 1.5);
+                    // 2. 히스토그램 평활화 (선명도 향상)
+                    //Cv2.EqualizeHist(gray, gray);
 
-                                // 5. Canny 엣지 검출
-                                using (Mat edges = new Mat())
-                                {
-                                    Cv2.Canny(blurred, edges, 50, 150);
+                    // 3. 블러링
+                    Cv2.BilateralFilter(gray, blurred, 9, 75, 75);
 
-                                    // 6. Mat → Bitmap 변환
-                                    Bitmap edgeBitmap = MatToBitmap(edges);
+                    // 4. Canny 엣지 검출 (민감도 약간 증가)
+                    Cv2.Canny(blurred, edges, 50, 150);
 
-                                    // 7. PictureBox에 표시
-                                    PictureBox picBox = Controls.Find($"pictureBox{i + 1}", true)[0] as PictureBox;
-                                    picBox.Image?.Dispose(); // 기존 이미지 메모리 해제
-                                    picBox.Image = edgeBitmap;
-                                }
-                            }
-                        }
-                    }
+                    //// 5. Morphology Close 연산으로 끊긴 선 연결
+                    //Mat kernel = Cv2.GetStructuringElement(MorphShapes.Rect, new OpenCvSharp.Size(3, 3));
+                    //Cv2.MorphologyEx(edges, edges, MorphTypes.Close, kernel);
+
+                    // 6. 결과 표시
+                    Bitmap edgeBitmap = MatToBitmap(edges);
+                    PictureBox picBox = Controls.Find($"pictureBox{i + 1}", true)[0] as PictureBox;
+                    picBox.Image?.Dispose(); // 기존 이미지 메모리 해제
+                    picBox.Image = edgeBitmap;
                 }
             }
 
             MessageBox.Show("엣지 검출 완료!");
         }
+
 
         // Bitmap → Mat 변환
         private Mat BitmapToMat(Bitmap bmp)
@@ -286,21 +282,11 @@ namespace EdgeDetection
         private void btnDetectChamfer_Click(object sender, EventArgs e)
         {
             string folderPath = Path.Combine(Application.StartupPath, "SavedImages");
-
-            double DistancePointToPoint(CvPoint a, CvPoint b)
-            {
-                return Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
-            }
-
-            //bool PointsEqual(CvPoint a, CvPoint b) => a.X == b.X && a.Y == b.Y;
-
-            double maxRedLineLength = -1;
-            int maxRedLineIndex = -1;
+            double chamferAngleTolerance = 10.0;
 
             for (int i = 0; i < 4; i++)
             {
                 string roiPath = Path.Combine(folderPath, $"roi_{i + 1}.bmp");
-
                 if (!File.Exists(roiPath))
                 {
                     MessageBox.Show($"ROI 이미지가 없습니다: roi_{i + 1}.bmp");
@@ -317,75 +303,97 @@ namespace EdgeDetection
                     Cv2.GaussianBlur(gray, blurred, new CvSize(3, 3), 0.5);
                     Cv2.Canny(blurred, edges, 50, 150);
 
-                    Cv2.FindContours(edges, out CvPoint[][] contours, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+                    LineSegmentPoint[] lines = Cv2.HoughLinesP(edges, 1, Math.PI / 180, 20, 5, 20);
 
-                    var largest = contours.OrderByDescending(c => Cv2.ContourArea(c)).FirstOrDefault();
-                    if (largest == null || largest.Length < 5) continue;
+                    List<LineSegmentPoint> verticalLines = new List<LineSegmentPoint>();
+                    List<LineSegmentPoint> horizontalLines = new List<LineSegmentPoint>();
+                    List<Tuple<LineSegmentPoint, double>> chamferCandidates = new List<Tuple<LineSegmentPoint, double>>();
 
-                    CvPoint[] approx = Cv2.ApproxPolyDP(largest, 10, true);
-                    if (approx.Length < 4) continue;
-
-                    //! 디버깅용 노란점 찍기 주석처리
-                    //foreach (var pt in approx)
-                    //{
-                    //    Cv2.Circle(result, pt, 5, Scalar.Yellow, -1);
-                    //}
-
-                    List<(CvPoint p1, CvPoint p2, double len)> lines = new List<(CvPoint, CvPoint, double)>();
-                    for (int j = 0; j < approx.Length; j++)
+                    foreach (var line in lines)
                     {
-                        var p1 = approx[j];
-                        var p2 = approx[(j + 1) % approx.Length];
-                        double len = DistancePointToPoint(p1, p2);
-                        lines.Add((p1, p2, len));
+                        double dx = line.P2.X - line.P1.X;
+                        double dy = line.P2.Y - line.P1.Y;
+                        double angleDeg = Math.Abs(Math.Atan2(dy, dx) * 180.0 / Math.PI);
+                        double length = Math.Sqrt(dx * dx + dy * dy);
+
+                        if (angleDeg > 180)
+                            angleDeg -= 180;
+
+                        if (angleDeg <= 10 || angleDeg >= 170)
+                            verticalLines.Add(line);
+                        else if (angleDeg >= 80 && angleDeg <= 100)
+                            horizontalLines.Add(line);
+                        else if (angleDeg >= 45 - chamferAngleTolerance && angleDeg <= 45 + chamferAngleTolerance)
+                            chamferCandidates.Add(Tuple.Create(line, length));
                     }
 
-                    var sorted = lines.OrderByDescending(l => l.len).ToList();
+                    var chamferLine = chamferCandidates.OrderByDescending(t => t.Item2).FirstOrDefault();
 
-                    var longLine1 = sorted[0];
-
-                    // 중복 제거 적용해서 두 번째 긴 선분 찾기
-                    (CvPoint p1, CvPoint p2, double len)? longLine2 = null;
-                    for (int idx = 1; idx < sorted.Count; idx++)
+                    if (verticalLines.Count > 0 && horizontalLines.Count > 0 && chamferLine != null)
                     {
-                        var candidate = sorted[idx];
-
-                        var mid1 = new CvPoint((longLine1.p1.X + longLine1.p2.X) / 2, (longLine1.p1.Y + longLine1.p2.Y) / 2);
-                        var mid2 = new CvPoint((candidate.p1.X + candidate.p2.X) / 2, (candidate.p1.Y + candidate.p2.Y) / 2);
-                        double dist = DistancePointToPoint(mid1, mid2);
-
-                        if (dist >= 20)
+                        LineSegmentPoint vLine = verticalLines.OrderByDescending(l =>
                         {
-                            longLine2 = candidate;
-                            break;
+                            double dx = l.P2.X - l.P1.X;
+                            double dy = l.P2.Y - l.P1.Y;
+                            return Math.Sqrt(dx * dx + dy * dy);
+                        }).First();
+
+                        LineSegmentPoint hLine = horizontalLines.OrderByDescending(l =>
+                        {
+                            double dx = l.P2.X - l.P1.X;
+                            double dy = l.P2.Y - l.P1.Y;
+                            return Math.Sqrt(dx * dx + dy * dy);
+                        }).First();
+
+                        LineSegmentPoint chamferSeg = chamferLine.Item1;
+
+                        // 교차점 계산 함수
+                        Point2f? GetIntersection(CvPoint p1, CvPoint p2, CvPoint p3, CvPoint p4)
+                        {
+                            float A1 = p2.Y - p1.Y;
+                            float B1 = p1.X - p2.X;
+                            float C1 = A1 * p1.X + B1 * p1.Y;
+
+                            float A2 = p4.Y - p3.Y;
+                            float B2 = p3.X - p4.X;
+                            float C2 = A2 * p3.X + B2 * p3.Y;
+
+                            float denominator = A1 * B2 - A2 * B1;
+                            if (Math.Abs(denominator) < 1e-5)
+                                return null;
+
+                            float x = (B2 * C1 - B1 * C2) / denominator;
+                            float y = (A1 * C2 - A2 * C1) / denominator;
+                            return new Point2f(x, y);
+                        }
+
+                        // 교차점 계산
+                        Point2f? inter1 = GetIntersection(vLine.P1, vLine.P2, chamferSeg.P1, chamferSeg.P2);
+                        Point2f? inter2 = GetIntersection(hLine.P1, hLine.P2, chamferSeg.P1, chamferSeg.P2);
+
+                        if (inter1.HasValue && inter2.HasValue)
+                        {
+                            // 연장 직선 그리기
+                            var (vStart, vEnd) = ExtendLine(vLine.P1, vLine.P2, result.Size());
+                            Cv2.Line(result, vStart, vEnd, Scalar.Blue, 1);
+
+                            var (hStart, hEnd) = ExtendLine(hLine.P1, hLine.P2, result.Size());
+                            Cv2.Line(result, hStart, hEnd, Scalar.Green, 1);
+
+                            var (cStart, cEnd) = ExtendLine(chamferSeg.P1, chamferSeg.P2, result.Size());
+                            Cv2.Line(result, cStart, cEnd, Scalar.Gray, 1);
+
+                            // 교차점 잇는 선분만 빨간색으로
+                            Cv2.Line(result,
+                                new CvPoint((int)inter1.Value.X, (int)inter1.Value.Y),
+                                new CvPoint((int)inter2.Value.X, (int)inter2.Value.Y),
+                                Scalar.Red, 2);
                         }
                     }
-                    if (longLine2 == null) longLine2 = sorted[1];
-
-                    CvPoint[] points = new CvPoint[] { longLine1.p1, longLine1.p2, longLine2.Value.p1, longLine2.Value.p2 };
-
-                    var candidateChamferLines = new List<(CvPoint p1, CvPoint p2, double len)>();
-                    for (int a = 0; a < points.Length; a++)
+                    else
                     {
-                        for (int b = a + 1; b < points.Length; b++)
-                        {
-                            double dist = DistancePointToPoint(points[a], points[b]);
-                            candidateChamferLines.Add((points[a], points[b], dist));
-                        }
+                        MessageBox.Show($"챔퍼 기준 각도에 부합하는 선이 충분하지 않습니다 (이미지 {i + 1})");
                     }
-
-                    var chamferLine = candidateChamferLines.OrderBy(l => l.len).First();
-
-                    // 빨간선 길이 체크
-                    if (chamferLine.len > maxRedLineLength)
-                    {
-                        maxRedLineLength = chamferLine.len;
-                        maxRedLineIndex = i;
-                    }
-
-                    Cv2.Line(result, longLine1.p1, longLine1.p2, Scalar.Green, 2);
-                    Cv2.Line(result, longLine2.Value.p1, longLine2.Value.p2, Scalar.Blue, 2);
-                    Cv2.Line(result, chamferLine.p1, chamferLine.p2, Scalar.Red, 2);
 
                     string resultPath = Path.Combine(folderPath, $"chamfer_{i + 1}.bmp");
                     Cv2.ImWrite(resultPath, result);
@@ -395,16 +403,29 @@ namespace EdgeDetection
                     picBox.Image = new Bitmap(resultPath);
                 }
             }
+        }
 
-            if (maxRedLineIndex >= 0)
-            {
-                MessageBox.Show($" 모따기 C0.7은 현재 {maxRedLineIndex+1}사분면");
-            }
-            else
-            {
-                MessageBox.Show("유효한 빨간선이 감지되지 않았습니다.");
-            }
+        // 직선 연장 함수 (시작점, 끝점 반환)
+        private (CvPoint, CvPoint) ExtendLine(CvPoint p1, CvPoint p2, CvSize imageSize)
+        {
+            double dx = p2.X - p1.X;
+            double dy = p2.Y - p1.Y;
 
+            double length = Math.Sqrt(dx * dx + dy * dy);
+            if (length == 0)
+                return (p1, p2);
+
+            double scale = 1000; // 충분히 긴 선 연장
+
+            CvPoint pt1 = new CvPoint(
+                (int)(p1.X - dx / length * scale),
+                (int)(p1.Y - dy / length * scale));
+
+            CvPoint pt2 = new CvPoint(
+                (int)(p1.X + dx / length * scale),
+                (int)(p1.Y + dy / length * scale));
+
+            return (pt1, pt2);
         }
 
 
@@ -412,3 +433,6 @@ namespace EdgeDetection
 
     }
 }
+
+
+
